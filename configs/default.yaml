@@ -1,0 +1,56 @@
+# LatentFlow Configuration
+# All hyperparameters for model, diffusion, data, and training
+
+# Image settings
+image_size: 256           # resolution (H = W)
+image_channels: 3         # RGB
+
+# VAE / Latent settings
+vae_model: "stabilityai/sd-vae-ft-ema"  # pretrained VAE from HuggingFace
+latent_scale_factor: 0.18215  # VAE latent scaling
+latent_channels: 4
+latent_height: 32         # height of latent space (256 / 8)
+latent_width: 32          # width of latent space (256 / 8)
+
+# DiT Model settings
+dit:
+  depth: 12                 # number of transformer blocks
+  hidden_size: 768          # hidden dimension / embedding size
+  num_heads: 12             # attention heads
+  mlp_ratio: 4.0            # mlp_hidden_dim / hidden_dim
+  patch_size: 2             # patch embedding size (in latent space)
+  dropout: 0.0              # dropout rate
+  use_checkpoint: false     # gradient checkpointing for memory
+  
+# Diffusion settings
+diffusion:
+  num_timesteps: 1000       # number of diffusion steps
+  beta_schedule: "linear"   # "linear" or "cosine"
+  beta_start: 0.0001
+  beta_end: 0.02
+  prediction_type: "epsilon"  # "epsilon", "sample", or "v_prediction"
+  
+# Training settings
+training:
+  num_epochs: 100
+  batch_size: 32
+  learning_rate: 1.0e-4
+  weight_decay: 1.0e-2
+  warmup_steps: 5000
+  ema_decay: 0.9999        # exponential moving average
+  mixed_precision: "fp16"  # "no", "fp16", "bf16"
+  num_workers: 4           # dataloader workers
+  
+# Sampling settings
+sampling:
+  sampler: "ddim"          # "ddpm" or "ddim"
+  ddim_steps: 50
+  guidance_scale: 1.0      # classifier-free guidance strength
+  
+# Paths
+paths:
+  data_root: "data/"
+  checkpoint_dir: "checkpoints/"
+  latent_cache_dir: "latents/"
+  log_dir: "runs/"
+  dataset_name: "celebahq"  # "celebahq" for now
