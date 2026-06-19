@@ -37,13 +37,13 @@ env/
 .DS_Store
 
 # Project-specific
-data/
-checkpoints/
+/data/
+/checkpoints/
 *.pt
 *.pth
-latents/
+/latents/
 wandb/
-runs/
+/runs/
 lightning_logs/
 
 # Environment variables
