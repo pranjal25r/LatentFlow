@@ -377,7 +377,8 @@ class GaussianDiffusion(nn.Module):
 if __name__ == "__main__":
     """Smoke test: verify diffusion forward/reverse shapes and loss computation."""
     import sys
-    sys.path.insert(0, '/Users/pranjal/Desktop/Home/Projects/LatentFlow')
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
     
     from latentflow.models.dit import DiT_S_2
     from latentflow.diffusion.schedule import get_beta_schedule, compute_alphas

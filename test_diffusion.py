@@ -2,9 +2,12 @@
 """Smoke test for diffusion components."""
 
 import sys
+from pathlib import Path
+
 import torch
 
-sys.path.insert(0, '/Users/pranjal/Desktop/Home/Projects/LatentFlow')
+# Make the repo root importable when run as `python test_diffusion.py`.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from latentflow.diffusion import GaussianDiffusion
 from latentflow.models.dit import DiT_S_2
