@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [
-    {name = "Pranjal", email = "pranjal@example.com"}
+    {name = "Pranjal", email = "pranjal25r@gmail.com"}
 ]
 dependencies = [
     "torch>=2.3.0",
@@ -29,8 +29,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/latentflow"
-Repository = "https://github.com/yourusername/latentflow.git"
+Homepage = "https://github.com/pranjal25r/LatentFlow"
+Repository = "https://github.com/pranjal25r/LatentFlow.git"
 
 [tool.setuptools]
 packages = ["latentflow", "latentflow.models", "latentflow.diffusion", "latentflow.data", "latentflow.utils"]
