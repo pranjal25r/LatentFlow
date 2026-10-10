@@ -1,42 +1,44 @@
 # LatentFlow
 
-**A Diffusion Transformer (DiT) image generator built from scratch in PyTorch, trained with latent diffusion on CelebA-HQ faces.**
+LatentFlow generates new face images starting from random noise. It is a small image generator written in PyTorch and trained on the CelebA-HQ face photos.
 
-LatentFlow replaces the U-Net backbone of a standard latent diffusion model with a Transformer that denoises in the VAE latent space. It implements the DiT architecture, the diffusion process (DDPM training, DDIM sampling), a two-stage latent-caching pipeline, and FID evaluation — all from scratch, with a frozen pretrained VAE handling only perceptual compression.
+## Why I built it
 
-![Architecture](assets/architecture.png)
+To understand how image generators work inside, by building the noise-removing model myself on a small budget.
 
----
+## How it works
+
+1. **Compress.** Each 256×256 photo is compressed into a small 4×32×32 grid of numbers using the pretrained Stable Diffusion image compressor (a VAE). It is frozen — I did not train it.
+2. **Add noise.** Noise is added to the compressed photo step by step, over 1,000 steps, until nothing but noise is left.
+3. **Learn to predict the noise.** A small transformer is shown a noisy compressed photo, is told which step it is on, and learns to predict the noise that was added. This is the only part I trained.
+4. **Generate.** To make a new image, start from pure noise and remove it in 50 steps (DDIM).
+5. **Decompress.** The same frozen VAE turns the result back into an image.
+
+![How the pieces fit together](assets/architecture.png)
+
+## Model size and training
+
+- Model: DiT-S/2 — 12 transformer layers, width 384, 6 attention heads, about 33.4M parameters. These are the values in [configs/default.yaml](configs/default.yaml).
+- Training: about 30k steps on one free Kaggle T4 GPU.
+- The model is unconditional: it makes a random face and cannot be told what kind of face to make.
 
 ## Results
 
-| Model | Params | Dataset | Resolution | Latent | Sampler | FID ↓ | Train compute |
-|---|---|---|---|---|---|---|---|
-| DiT-S/2 | 33.4M | CelebA-HQ | 256×256 | 4×32×32 | DDIM (50 steps, η=0) | **82.4** (5,000 samples, EMA) | 1× T4, ~30k steps |
+![Generated faces](assets/samples.png)
 
-> FID measured with clean-FID over 5,000 generated samples against CelebA-HQ. This is a deliberately small-scale, single-GPU reproduction of the DiT architecture — the focus is engineering correctness and an honest, reproducible evaluation, not a state-of-the-art score. FID drops substantially with more training steps or a larger model (see [what I'd do next](#design-choices--what-id-do-next)).
+**FID 82.4** on 5,000 generated images (50 DDIM steps), compared against CelebA-HQ. Lower is better; published models reach single digits with far more compute, so this is a small-budget result.
 
-![Samples](assets/samples.png)
+The FID was measured once on Kaggle; log not saved.
 
----
+## Known limits
 
-## Why a Transformer instead of a U-Net?
+- The model is small and training was short.
+- FID from 5,000 samples reads higher than from 50,000, so this number is not directly comparable to published ones.
+- The averaged copy of the weights (EMA), which is used for generating, started from random weights with a slow update. This likely hurt quality. Fixing it needs retraining.
 
-Latent diffusion models conventionally denoise with a convolutional U-Net. The DiT line of work showed that a plain Transformer operating on latent patches works at least as well, and scales more predictably: as you add compute to the Transformer (more depth, width, or tokens), sample quality improves in a smooth, measurable way, with FID tracking the model's forward-pass cost. That predictability — and the fact that a Transformer reuses the same well-understood attention machinery rather than hand-designed convolutional blocks — is the reason this project uses a DiT. LatentFlow is a small-scale, from-scratch reproduction of that idea rather than a state-of-the-art run.
+## How to run
 
----
-
-## The two-stage latent-diffusion pipeline
-
-**Stage 1 — perceptual compression (frozen VAE).** A pretrained Stable Diffusion VAE encodes each 256×256 image into a 4×32×32 latent. The VAE is never trained; it only compresses pixels into a lower-dimensional space where diffusion is far cheaper. These latents are computed **once and cached to disk**, so training never re-runs the encoder — this is the main compute saving.
-
-**Stage 2 — latent diffusion (trained DiT).** The DiT learns to denoise the cached latents. Each latent is patchified into tokens, processed by a stack of Transformer blocks conditioned on the diffusion timestep via adaLN-Zero, then unpatchified back to a latent-shaped noise prediction. Training is standard DDPM: add noise at a random timestep, predict it, minimize MSE.
-
-**Inference.** Start from Gaussian noise in latent space, denoise iteratively with the DDIM sampler (fast, deterministic), then decode the final latent back to a face with the frozen VAE decoder.
-
----
-
-## Setup
+Set up:
 
 ```bash
 git clone https://github.com/pranjal25r/LatentFlow.git
@@ -45,81 +47,41 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Download CelebA-HQ (256×256) and place the images under `data/celebahq/`.
+Download CelebA-HQ (256×256) and put the images in `data/celebahq/`.
 
-## Usage
+1. Compress the photos once (saved to `latents/`):
 
-### 1. Pre-compute & cache latents (run once)
-```bash
-python scripts/precompute_latents.py --config configs/default.yaml
-```
-Encodes the dataset with the frozen VAE and writes latents to `latents/`.
+   ```bash
+   python scripts/precompute_latents.py --config configs/default.yaml
+   ```
 
-### 2. Train
-```bash
-python scripts/train.py --config configs/default.yaml --preset s2
-# resume from a checkpoint:
-python scripts/train.py --config configs/default.yaml --resume checkpoints/ckpt_step5000.pt
-```
-`--preset s2` trains the lightweight DiT-S/2 (recommended for a single GPU / Colab). Use `--preset b2` for the larger model, or `--preset config` to use the `dit` block in the config. Logs and decoded previews go to `runs/` (view with `tensorboard --logdir runs`).
+2. Train. The model is built from the `dit` block in the config:
 
-### 3. Sample
-```bash
-python scripts/sample.py --ckpt checkpoints/ckpt_final.pt --n 16
-```
-Saves a grid to `assets/samples.png` and individual images to `samples/`.
+   ```bash
+   python scripts/train.py --config configs/default.yaml
+   # continue from a checkpoint:
+   python scripts/train.py --config configs/default.yaml --resume checkpoints/ckpt_step2000.pt
+   ```
 
-### 4. Evaluate FID
-```bash
-pip install clean-fid
-python scripts/eval_fid.py --ckpt checkpoints/ckpt_final.pt \
-    --real-dir data/celebahq --num-samples 5000
-```
-Prints FID alongside the sample count and sampler settings.
+3. Generate faces (grid saved to `assets/samples.png`, single images to `samples/`):
 
----
+   ```bash
+   python scripts/sample.py --ckpt checkpoints/ckpt_final.pt --n 16
+   ```
 
-## Repository structure
+4. Measure FID:
 
-```
-latentflow/
-├── configs/
-│   └── default.yaml              # single source of truth for all hyperparameters
-├── latentflow/
-│   ├── models/
-│   │   ├── dit.py                # DiT, DiTBlock, PatchEmbed, adaLN-Zero, presets
-│   │   └── vae.py                # frozen pretrained VAE wrapper
-│   ├── diffusion/
-│   │   ├── schedule.py           # beta schedules + alpha precomputation
-│   │   └── gaussian_diffusion.py # q_sample, training_loss, DDPM + DDIM sampling
-│   ├── data/
-│   │   └── dataset.py            # CelebA-HQ images + cached-latent dataset
-│   └── utils/                    # config, seeding, logging
-├── scripts/
-│   ├── precompute_latents.py     # Stage 1: encode + cache latents
-│   ├── train.py                  # Stage 2: train the DiT (AMP, EMA, resume)
-│   ├── sample.py                 # generate a grid of faces
-│   └── eval_fid.py               # compute FID vs real CelebA-HQ
-└── assets/
-    ├── architecture.png
-    └── make_diagram.py
-```
+   ```bash
+   python scripts/eval_fid.py --ckpt checkpoints/ckpt_final.pt \
+       --real-dir data/celebahq --num-samples 5000
+   ```
 
----
+5. Quick checks that need no data or GPU:
 
-## Design choices & what I'd do next
-
-- **adaLN-Zero conditioning.** Timestep information modulates each block's normalization (scale/shift/gate) rather than being concatenated as tokens — the conditioning mechanism from the DiT paper, which trains more stably.
-- **EMA weights for sampling.** An exponential moving average of the parameters is tracked during training and used at inference; for diffusion this noticeably improves sample quality over the raw weights.
-- **Cached latents + mixed precision** keep a from-scratch run feasible on modest hardware.
-- **Next steps:** v-prediction instead of ε-prediction; classifier-free guidance with CelebA-HQ attributes for conditional generation; a larger DiT-B/2 run for a lower FID; and higher-resolution latents.
-
-## References
-
-- Peebles & Xie, *Scalable Diffusion Models with Transformers* (2023). [arXiv:2212.09748](https://arxiv.org/abs/2212.09748)
-- Rombach et al., *High-Resolution Image Synthesis with Latent Diffusion Models* (2022). [arXiv:2112.10752](https://arxiv.org/abs/2112.10752)
-- Ho et al., *Denoising Diffusion Probabilistic Models* (2020). [arXiv:2006.11239](https://arxiv.org/abs/2006.11239)
-- Song et al., *Denoising Diffusion Implicit Models* (2021). [arXiv:2010.02502](https://arxiv.org/abs/2010.02502)
+   ```bash
+   python test_diffusion.py
+   python -m latentflow.diffusion.gaussian_diffusion
+   ```
 
 ## License
 

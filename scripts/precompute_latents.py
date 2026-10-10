@@ -134,7 +134,7 @@ def main(args: argparse.Namespace) -> None:
         bar.close()
 
     print(f"\nDone. Cached {saved} latents of shape {latent_shape} in {out_dir}/")
-    print("You can now run: python scripts/train.py --config configs/default.yaml --preset s2")
+    print("You can now run: python scripts/train.py --config configs/default.yaml")
 
 
 def parse_args() -> argparse.Namespace:

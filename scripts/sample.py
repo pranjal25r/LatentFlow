@@ -13,7 +13,7 @@ import argparse
 import math
 import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import yaml
 import torch
@@ -25,7 +25,7 @@ from latentflow.models.dit import DiT, DiT_S_2, DiT_B_2  # noqa: E402
 from latentflow.diffusion.gaussian_diffusion import GaussianDiffusion  # noqa: E402
 
 
-def build_model(config: Dict[str, Any], preset: str) -> DiT:
+def build_model(config: Dict[str, Any], preset: Optional[str] = None) -> DiT:
     pred = config["diffusion"]["prediction_type"]
     lc = config["latent_channels"]
     if preset == "s2":
@@ -55,7 +55,11 @@ def main(args: argparse.Namespace) -> None:
 
     ckpt = torch.load(args.ckpt, map_location=device)
     config: Dict[str, Any] = ckpt["config"]
-    preset: str = ckpt.get("preset", "config")
+    # The model is built from the config saved in the checkpoint. A preset
+    # (from --preset, or recorded by an older training run) overrides it.
+    preset = args.preset or ckpt.get("preset")
+    if preset == "config":
+        preset = None
     if args.seed is not None:
         torch.manual_seed(args.seed)
 
@@ -64,7 +68,7 @@ def main(args: argparse.Namespace) -> None:
     weights = ckpt["ema"] if (args.use_ema and "ema" in ckpt) else ckpt["model"]
     model.load_state_dict(weights)
     model.eval()
-    print(f"Loaded {'EMA' if args.use_ema else 'raw'} weights | preset {preset} "
+    print(f"Loaded {'EMA' if args.use_ema else 'raw'} weights | model {preset or 'from config'} "
           f"| params {model.num_parameters():,}")
 
     diffusion = GaussianDiffusion(
@@ -109,6 +113,8 @@ def main(args: argparse.Namespace) -> None:
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Sample from a LatentFlow checkpoint.")
     p.add_argument("--ckpt", type=str, required=True)
+    p.add_argument("--preset", type=str, default=None, choices=["s2", "b2"],
+                   help="Optional override of the model size stored in the checkpoint.")
     p.add_argument("--n", type=int, default=16, help="Number of images to generate.")
     p.add_argument("--out", type=str, default="samples/")
     p.add_argument("--grid-path", type=str, default="assets/samples.png")

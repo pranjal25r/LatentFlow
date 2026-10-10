@@ -73,7 +73,6 @@ with torch.no_grad():
         model,
         shape=shape,
         num_steps=num_ddim_steps,
-        guidance_scale=1.0,
         eta=0.0,  # Deterministic
     )
 
@@ -100,7 +99,6 @@ with torch.no_grad():
     samples_ddpm = diffusion_small.p_sample_loop(
         model,
         shape=shape,
-        guidance_scale=1.0,
     )
 
 print(f"\n✓ DDPM sampling completed")

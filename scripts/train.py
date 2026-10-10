@@ -12,7 +12,7 @@ Features:
   - TensorBoard loss logging + periodic decoded-sample previews.
 
 Run:
-  python scripts/train.py --config configs/default.yaml --preset s2
+  python scripts/train.py --config configs/default.yaml
   python scripts/train.py --config configs/default.yaml --resume checkpoints/ckpt_step5000.pt
 """
 
@@ -60,12 +60,12 @@ def load_config(path: str) -> Dict[str, Any]:
         return yaml.safe_load(f)
 
 
-def build_model(config: Dict[str, Any], preset: str = "config") -> DiT:
-    """Construct a DiT according to the chosen preset.
+def build_model(config: Dict[str, Any], preset: Optional[str] = None) -> DiT:
+    """Construct a DiT from the config's `dit` block, or from a named preset.
 
     Args:
         config: Parsed config dict.
-        preset: One of {"config", "s2", "b2"}. "config" uses the `dit` block.
+        preset: Optional override, "s2" or "b2". None uses the `dit` block.
 
     Returns:
         An (un-trained) DiT instance.
@@ -175,7 +175,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Model + diffusion
     model = build_model(config, args.preset).to(device)
-    print(f"Model preset: {args.preset} | parameters: {model.num_parameters():,}")
+    print(f"Model: {args.preset or 'from config'} | parameters: {model.num_parameters():,}")
     diffusion = GaussianDiffusion(
         num_timesteps=config["diffusion"]["num_timesteps"],
         beta_schedule=config["diffusion"]["beta_schedule"],
@@ -336,8 +336,8 @@ def _save_preview(config, model, ema, diffusion, vae, device, out_path: Path, n:
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Train LatentFlow DiT.")
     p.add_argument("--config", type=str, default="configs/default.yaml")
-    p.add_argument("--preset", type=str, default="s2", choices=["config", "s2", "b2"],
-                   help="Model size. 's2' (~33M) is recommended for a single GPU.")
+    p.add_argument("--preset", type=str, default=None, choices=["s2", "b2"],
+                   help="Optional override of the config's `dit` block with a named model size.")
     p.add_argument("--resume", type=str, default=None)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--batch-size", type=int, default=None,

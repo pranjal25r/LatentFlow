@@ -16,7 +16,7 @@ import numpy as np
 def modulate(x: Tensor, shift: Tensor, scale: Tensor) -> Tensor:
     """Apply modulation: (x * (1 + scale)) + shift.
     
-    Used in adaLN-Zero conditioning. Allows timestep embedding to control
+    Used in adaLN (timestep conditioning). Allows timestep embedding to control
     the layer norm output.
     
     Args:
@@ -192,7 +192,7 @@ class TimestepEmbedder(nn.Module):
     """Embeds diffusion timesteps into vectors via sinusoidal encoding + MLP.
     
     Produces a conditioning vector from timestep indices. This is used to
-    modulate the layer norms in each DiT block (adaLN-Zero).
+    modulate the layer norms in each DiT block: adaLN (timestep conditioning).
     
     Args:
         hidden_size: Output embedding dimension and intermediate MLP size.
@@ -255,11 +255,11 @@ class TimestepEmbedder(nn.Module):
 
 
 class DiTBlock(nn.Module):
-    """Single Transformer block for DiT with adaLN-Zero conditioning.
+    """Single Transformer block for DiT with adaLN (timestep conditioning).
     
     Combines self-attention, MLP, and adaptive layer normalization.
     The timestep embedding produces scale/shift parameters that modulate
-    the layer norms (adaLN-Zero).
+    the layer norms: adaLN (timestep conditioning).
     
     Args:
         hidden_size: Hidden/embedding dimension.
@@ -306,7 +306,7 @@ class DiTBlock(nn.Module):
             nn.Dropout(dropout),
         )
         
-        # adaLN-Zero parameters
+        # adaLN (timestep conditioning) parameters
         # Linear layer to project timestep embedding to scale/shift/gate params
         # We need 6 parameters total: 2 for attention norm (scale, shift), 
         # 1 for attention gate, 2 for MLP norm, 1 for MLP gate
@@ -342,7 +342,7 @@ class DiTBlock(nn.Module):
             mlp_scale, mlp_shift, mlp_gate,
         ) = adaLN_params.chunk(6, dim=1)
         
-        # Self-attention with adaLN-Zero
+        # Self-attention with adaLN (timestep conditioning)
         # Normalize and modulate input
         x_norm = self.norm1(x)  # [B, L, hidden_size]
         x_norm = modulate(x_norm, attn_shift, attn_scale)  # [B, L, hidden_size]
@@ -360,7 +360,7 @@ class DiTBlock(nn.Module):
         # Gate is [B, hidden_size], unsqueeze to [B, 1, hidden_size] for broadcasting
         x = x + attn_gate.unsqueeze(1) * attn_out
         
-        # MLP with adaLN-Zero
+        # MLP with adaLN (timestep conditioning)
         # Normalize and modulate input
         x_norm = self.norm2(x)  # [B, L, hidden_size]
         x_norm = modulate(x_norm, mlp_shift, mlp_scale)  # [B, L, hidden_size]
@@ -608,7 +608,7 @@ class DiT(nn.Module):
 def DiT_S_2(**kwargs) -> DiT:
     """Small DiT with patch_size=2.
     
-    Parameters: ~97M
+    Parameters: ~33.4M
     """
     return DiT(
         hidden_size=384,
@@ -622,7 +622,7 @@ def DiT_S_2(**kwargs) -> DiT:
 def DiT_B_2(**kwargs) -> DiT:
     """Base DiT with patch_size=2.
     
-    Parameters: ~312M
+    Parameters: ~133.5M
     """
     return DiT(
         hidden_size=768,

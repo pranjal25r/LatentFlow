@@ -3,7 +3,7 @@
 A simple, dependency-light pipeline figure for the README:
 
   Images -> [Frozen VAE Encoder] -> Latents (cached)
-         -> [DiT: patchify -> N x Transformer blocks (adaLN-Zero, timestep cond.)
+         -> [DiT: patchify -> N x Transformer blocks (adaLN, timestep conditioning)
             -> unpatchify -> predict noise]
          -> [DDIM Sampler] -> [Frozen VAE Decoder] -> Faces
 
@@ -65,7 +65,7 @@ def main() -> None:
     # Stage 2 — trained DiT
     dit_r, dit_l = box(
         ax, 6.5, y - 0.35, 3.2, h + 0.7,
-        "Diffusion Transformer (DiT)\npatchify -> N x blocks\n(adaLN-Zero, timestep)\n-> unpatchify -> noise",
+        "Diffusion Transformer (DiT)\npatchify -> N x blocks\n(adaLN, timestep conditioning)\n-> unpatchify -> noise",
         TRAINED, TRAINED_E, text_color="white", fontsize=9,
     )
 

@@ -17,7 +17,7 @@ import argparse
 import sys
 import tempfile
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import torch
 
@@ -28,7 +28,7 @@ from latentflow.models.dit import DiT, DiT_S_2, DiT_B_2  # noqa: E402
 from latentflow.diffusion.gaussian_diffusion import GaussianDiffusion  # noqa: E402
 
 
-def build_model(config: Dict[str, Any], preset: str) -> DiT:
+def build_model(config: Dict[str, Any], preset: Optional[str] = None) -> DiT:
     pred = config["diffusion"]["prediction_type"]
     lc = config["latent_channels"]
     if preset == "s2":
@@ -86,7 +86,11 @@ def main(args: argparse.Namespace) -> None:
 
     ckpt = torch.load(args.ckpt, map_location=device)
     config: Dict[str, Any] = ckpt["config"]
-    preset: str = ckpt.get("preset", "config")
+    # The model is built from the config saved in the checkpoint. A preset
+    # (from --preset, or recorded by an older training run) overrides it.
+    preset = args.preset or ckpt.get("preset")
+    if preset == "config":
+        preset = None
 
     model = build_model(config, preset).to(device)
     weights = ckpt["ema"] if (args.use_ema and "ema" in ckpt) else ckpt["model"]
@@ -124,7 +128,7 @@ def main(args: argparse.Namespace) -> None:
     print(f"FID: {score:.2f}")
     print(f"  samples generated : {args.num_samples}")
     print(f"  sampler           : {sampler} ({steps} steps, eta={args.eta})")
-    print(f"  model preset      : {preset}")
+    print(f"  model             : {preset or 'from config'}")
     print(f"  weights           : {'EMA' if args.use_ema else 'raw'}")
     print("=" * 60)
     print("Report this number with N and sampler settings — that's what makes it honest.")
@@ -133,6 +137,8 @@ def main(args: argparse.Namespace) -> None:
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Compute FID for a LatentFlow checkpoint.")
     p.add_argument("--ckpt", type=str, required=True)
+    p.add_argument("--preset", type=str, default=None, choices=["s2", "b2"],
+                   help="Optional override of the model size stored in the checkpoint.")
     p.add_argument("--real-dir", type=str, required=True,
                    help="Directory of real CelebA-HQ images to compare against.")
     p.add_argument("--gen-dir", type=str, default=None,

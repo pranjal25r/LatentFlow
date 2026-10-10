@@ -21,7 +21,6 @@ class GaussianDiffusion(nn.Module):
       - Training loss: predict noise from noisy samples
       - Sampling (p_sample): iteratively denoise
       - DDIM fast sampling
-      - Optional classifier-free guidance
     
     All tensors registered as buffers (non-trainable, moved to device).
     
@@ -171,7 +170,6 @@ class GaussianDiffusion(nn.Module):
         model: nn.Module,
         xt: Tensor,
         t: int,
-        guidance_scale: float = 1.0,
     ) -> Tensor:
         """Single denoising step (DDPM reverse process).
         
@@ -187,7 +185,6 @@ class GaussianDiffusion(nn.Module):
             model: Denoising model predicting noise.
             xt: Noisy latent at step t of shape (B, C, H, W).
             t: Current timestep index (scalar integer).
-            guidance_scale: Classifier-free guidance scale (1.0 = no guidance).
             
         Returns:
             Denoised latent x_{t-1} of shape (B, C, H, W).
@@ -235,7 +232,6 @@ class GaussianDiffusion(nn.Module):
         self,
         model: nn.Module,
         shape: Tuple[int, ...],
-        guidance_scale: float = 1.0,
         progress_bar: bool = False,
     ) -> Tensor:
         """Full reverse diffusion (DDPM) to sample from noise.
@@ -249,7 +245,6 @@ class GaussianDiffusion(nn.Module):
         Args:
             model: Denoising model.
             shape: Shape of latent to generate (e.g., (B, 4, 32, 32)).
-            guidance_scale: Classifier-free guidance scale.
             progress_bar: Whether to show progress bar.
             
         Returns:
@@ -274,7 +269,7 @@ class GaussianDiffusion(nn.Module):
                 pass
         
         for t in timesteps:
-            x_t = self.p_sample(model, x_t, t, guidance_scale=guidance_scale)
+            x_t = self.p_sample(model, x_t, t)
         
         return x_t
 
@@ -284,7 +279,6 @@ class GaussianDiffusion(nn.Module):
         model: nn.Module,
         shape: Tuple[int, ...],
         num_steps: int = 50,
-        guidance_scale: float = 1.0,
         progress_bar: bool = False,
         eta: float = 0.0,
     ) -> Tensor:
@@ -296,7 +290,6 @@ class GaussianDiffusion(nn.Module):
             model: Denoising model.
             shape: Latent shape, e.g. (B, 4, 32, 32).
             num_steps: Number of DDIM steps (< num_timesteps).
-            guidance_scale: Classifier-free guidance scale.
             progress_bar: Whether to show a tqdm bar.
             eta: Stochasticity (0 = deterministic, 1 = DDPM-like).
 
@@ -444,7 +437,6 @@ if __name__ == "__main__":
             model,
             shape=shape,
             num_steps=num_ddim_steps,
-            guidance_scale=1.0,
             eta=0.0,  # Deterministic
         )
     
@@ -471,7 +463,6 @@ if __name__ == "__main__":
         samples_ddpm = diffusion_small.p_sample_loop(
             model,
             shape=shape,
-            guidance_scale=1.0,
         )
     
     print(f"\n✓ DDPM sampling completed")
